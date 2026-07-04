@@ -5,7 +5,7 @@ import { useParams, useRouter } from "next/navigation";
 import { useAuth } from "@/app/context/AuthContext";
 import AuctionTimer from "@/app/components/AuctionTimer";
 import ReviewStars from "@/app/components/ReviewStars";
-import { ArrowLeft, Gavel, User, Send, Star } from "lucide-react";
+import { ArrowLeft, Gavel, User, ShoppingCart, CreditCard, X, CheckCircle } from "lucide-react";
 import Link from "next/link";
 
 interface ItemData {
@@ -62,6 +62,17 @@ export default function ItemDetail() {
   const [reviews, setReviews] = useState<any[]>([]);
   const [reviewLoading, setReviewLoading] = useState(false);
   const [reviewSuccess, setReviewSuccess] = useState(false);
+
+  // Checkout state
+  const [showCheckout, setShowCheckout] = useState(false);
+  const [cardName, setCardName] = useState("");
+  const [cardNumber, setCardNumber] = useState("");
+  const [cardExpiry, setCardExpiry] = useState("");
+  const [cardCvv, setCardCvv] = useState("");
+  const [purchaseLoading, setPurchaseLoading] = useState(false);
+  const [purchaseError, setPurchaseError] = useState("");
+  const [purchaseSuccess, setPurchaseSuccess] = useState(false);
+  const [transactionId, setTransactionId] = useState("");
 
   const isSimple = user?.is_simple_mode === 1;
 
@@ -125,6 +136,56 @@ export default function ItemDetail() {
       setBidError("Failed to place bid");
     } finally {
       setBidLoading(false);
+    }
+  }
+
+  function formatCardNumber(value: string) {
+    const digits = value.replace(/\D/g, "").slice(0, 16);
+    return digits.replace(/(\d{4})(?=\d)/g, "$1 ");
+  }
+
+  function formatExpiry(value: string) {
+    const digits = value.replace(/\D/g, "").slice(0, 4);
+    if (digits.length > 2) {
+      return digits.slice(0, 2) + "/" + digits.slice(2);
+    }
+    return digits;
+  }
+
+  async function handleBuy(e: React.FormEvent) {
+    e.preventDefault();
+    if (!user) { router.push("/auth"); return; }
+    setPurchaseError("");
+    setPurchaseLoading(true);
+
+    try {
+      const res = await fetch(`/api/items/${id}/buy`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          card_number: cardNumber,
+          card_name: cardName,
+          card_expiry: cardExpiry,
+          card_cvv: cardCvv,
+        }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        setPurchaseError(data.error);
+        return;
+      }
+
+      setTransactionId(data.transaction_id);
+      setPurchaseSuccess(true);
+      // Reload item to show sold status
+      const itemRes = await fetch(`/api/items/${id}`);
+      const itemData = await itemRes.json();
+      setItem(itemData.item);
+    } catch {
+      setPurchaseError("Purchase failed. Try again.");
+    } finally {
+      setPurchaseLoading(false);
     }
   }
 
@@ -325,9 +386,30 @@ export default function ItemDetail() {
                 ⛔ This item has been sold
               </div>
             ) : (
-              <div className="flex items-center justify-between">
-                <span className="text-tavern-cream/60 text-sm">Price</span>
-                <span className="text-3xl font-bold text-tavern-gold">${item.price.toFixed(2)}</span>
+              <div className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <span className="text-tavern-cream/60 text-sm">Price</span>
+                  <span className="text-3xl font-bold text-tavern-gold">${item.price.toFixed(2)}</span>
+                </div>
+                {user && user.id !== item.seller_id ? (
+                  <button
+                    onClick={() => setShowCheckout(true)}
+                    className="tavern-btn w-full flex items-center justify-center gap-2 text-lg py-3"
+                  >
+                    <ShoppingCart size={20} /> Buy Now
+                  </button>
+                ) : user && user.id === item.seller_id ? (
+                  <p className="text-tavern-cream/40 text-sm text-center italic">
+                    This is your listing
+                  </p>
+                ) : (
+                  <button
+                    onClick={() => router.push("/auth")}
+                    className="tavern-btn w-full flex items-center justify-center gap-2"
+                  >
+                    <ShoppingCart size={18} /> Sign in to Buy
+                  </button>
+                )}
               </div>
             )}
 
@@ -340,6 +422,126 @@ export default function ItemDetail() {
             )}
           </div>
         </div>
+
+        {/* Checkout Modal */}
+        {showCheckout && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/70">
+            <div className="tavern-card w-full max-w-md p-6 relative max-h-[90vh] overflow-y-auto">
+              <button
+                onClick={() => { setShowCheckout(false); setPurchaseError(""); }}
+                className="absolute top-4 right-4 text-tavern-cream/40 hover:text-tavern-cream"
+              >
+                <X size={20} />
+              </button>
+
+              {purchaseSuccess ? (
+                <div className="text-center py-8 space-y-4">
+                  <div className="text-6xl">✅</div>
+                  <h3 className="font-serif text-2xl text-tavern-gold">Purchase Complete!</h3>
+                  <p className="text-tavern-cream/60">You bought <strong className="text-tavern-cream">{item.title}</strong></p>
+                  <div className="bg-tavern-brown/20 rounded-lg p-3 text-sm">
+                    <p className="text-tavern-cream/40">Transaction ID</p>
+                    <p className="text-tavern-gold font-mono text-xs break-all">{transactionId}</p>
+                  </div>
+                  <p className="text-tavern-cream/50 text-sm">The seller will contact you about delivery.</p>
+                  <button
+                    onClick={() => setShowCheckout(false)}
+                    className="tavern-btn"
+                  >
+                    Done
+                  </button>
+                </div>
+              ) : (
+                <>
+                  <div className="text-center mb-6">
+                    <CreditCard size={32} className="text-tavern-gold mx-auto" />
+                    <h3 className="font-serif text-xl text-tavern-gold mt-2">Checkout</h3>
+                    <p className="text-tavern-cream/50 text-sm">{item.title}</p>
+                    <p className="text-2xl font-bold text-tavern-gold mt-1">${item.price.toFixed(2)}</p>
+                  </div>
+
+                  <form onSubmit={handleBuy} className="space-y-4">
+                    <div>
+                      <label className="block text-sm text-tavern-cream/70 mb-1">Cardholder Name</label>
+                      <input
+                        type="text"
+                        value={cardName}
+                        onChange={(e) => setCardName(e.target.value)}
+                        className="tavern-input w-full"
+                        placeholder="John Doe"
+                        required
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm text-tavern-cream/70 mb-1">Card Number</label>
+                      <input
+                        type="text"
+                        value={cardNumber}
+                        onChange={(e) => setCardNumber(formatCardNumber(e.target.value))}
+                        className="tavern-input w-full font-mono"
+                        placeholder="4242 4242 4242 4242"
+                        required
+                      />
+                    </div>
+                    <div className="grid grid-cols-2 gap-4">
+                      <div>
+                        <label className="block text-sm text-tavern-cream/70 mb-1">Expiry</label>
+                        <input
+                          type="text"
+                          value={cardExpiry}
+                          onChange={(e) => setCardExpiry(formatExpiry(e.target.value))}
+                          className="tavern-input w-full"
+                          placeholder="MM/YY"
+                          required
+                        />
+                      </div>
+                      <div>
+                        <label className="block text-sm text-tavern-cream/70 mb-1">CVV</label>
+                        <input
+                          type="text"
+                          value={cardCvv}
+                          onChange={(e) => setCardCvv(e.target.value.replace(/\D/g, "").slice(0, 4))}
+                          className="tavern-input w-full"
+                          placeholder="123"
+                          required
+                        />
+                      </div>
+                    </div>
+
+                    {/* Card brand hints */}
+                    <div className="flex justify-center gap-3 text-2xl opacity-40">
+                      <span>💳</span>
+                      <span>🏦</span>
+                      <span>🪙</span>
+                    </div>
+
+                    {purchaseError && (
+                      <div className="bg-tavern-red/10 border border-tavern-red/30 rounded-lg p-3 text-sm text-tavern-red">
+                        ⚠️ {purchaseError}
+                      </div>
+                    )}
+
+                    <button
+                      type="submit"
+                      disabled={purchaseLoading}
+                      className="tavern-btn w-full flex items-center justify-center gap-2 py-3"
+                    >
+                      {purchaseLoading ? (
+                        "⏳ Processing payment..."
+                      ) : (
+                        <><ShoppingCart size={18} /> Pay ${item.price.toFixed(2)}</>
+                      )}
+                    </button>
+
+                    <p className="text-xs text-tavern-cream/30 text-center">
+                      🔒 This is a simulated payment. No real money is charged.
+                    </p>
+                  </form>
+                </>
+              )}
+            </div>
+          </div>
+        )}
 
         {/* Reviews section */}
         <div className="mt-12">
