@@ -1,65 +1,139 @@
-import Image from "next/image";
+"use client";
+
+import { useState, useEffect } from "react";
+import ItemCard from "@/app/components/ItemCard";
+import { useAuth } from "@/app/context/AuthContext";
+import { CATEGORIES } from "@/lib/types";
+import { Search, SlidersHorizontal, ShoppingBag } from "lucide-react";
+import Link from "next/link";
+
+interface Item {
+  id: number;
+  title: string;
+  price: number;
+  images: string;
+  category: string;
+  condition: string;
+  is_auction: number;
+  seller_username: string;
+  seller_reputation: number;
+  created_at: string;
+}
 
 export default function Home() {
+  const [items, setItems] = useState<Item[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [search, setSearch] = useState("");
+  const [category, setCategory] = useState("All");
+  const { user } = useAuth();
+  const isSimple = user?.is_simple_mode === 1;
+
+  async function fetchItems() {
+    setLoading(true);
+    try {
+      const params = new URLSearchParams();
+      if (category !== "All") params.set("category", category);
+      if (search) params.set("search", search);
+
+      const res = await fetch(`/api/items?${params}`);
+      const data = await res.json();
+      setItems(data.items || []);
+    } catch (e) {
+      console.error("Failed to fetch items", e);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  useEffect(() => {
+    fetchItems();
+  }, [category]);
+
+  function handleSearch(e: React.FormEvent) {
+    e.preventDefault();
+    fetchItems();
+  }
+
   return (
-    <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex flex-1 w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.tsx file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
+    <div className={isSimple ? "simple-mode" : ""}>
+      {/* Hero Banner */}
+      <div className="relative overflow-hidden">
+        <div className="max-w-7xl mx-auto px-4 py-12 md:py-20">
+          <div className="text-center">
+            <span className="text-5xl md:text-6xl">🏮</span>
+            <h1 className="font-serif text-3xl md:text-5xl text-tavern-gold mt-4">
+              Welcome to the Market Square
+            </h1>
+            <p className="text-tavern-cream/60 mt-2 text-sm md:text-lg font-serif italic max-w-xl mx-auto">
+              Where forgotten treasures find new homes and every item has a story to tell.
+            </p>
+            <div className="tavern-divider max-w-md mx-auto mt-6" />
+          </div>
         </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
+      </div>
+
+      <div className="max-w-7xl mx-auto px-4 pb-12">
+        {/* Search & Filter */}
+        <div className="flex flex-col md:flex-row gap-4 mb-8">
+          <form onSubmit={handleSearch} className="flex-1">
+            <div className="relative">
+              <Search size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-tavern-cream/40" />
+              <input
+                type="text"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Search the market..."
+                className="tavern-input w-full pl-10"
+              />
+            </div>
+          </form>
+          <div className="flex items-center gap-2">
+            <SlidersHorizontal size={16} className="text-tavern-cream/40" />
+            <select
+              value={category}
+              onChange={(e) => setCategory(e.target.value)}
+              className="tavern-input"
+            >
+              <option value="All">All Categories</option>
+              {CATEGORIES.map((cat) => (
+                <option key={cat} value={cat}>{cat}</option>
+              ))}
+            </select>
+          </div>
         </div>
-      </main>
+
+        {/* Item Grid */}
+        {loading ? (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
+            {[...Array(8)].map((_, i) => (
+              <div key={i} className="tavern-card p-4 animate-pulse">
+                <div className="aspect-square bg-tavern-brown/30 rounded-lg mb-4" />
+                <div className="h-4 bg-tavern-brown/30 rounded w-3/4 mb-2" />
+                <div className="h-4 bg-tavern-brown/30 rounded w-1/2" />
+              </div>
+            ))}
+          </div>
+        ) : items.length === 0 ? (
+          <div className="text-center py-16">
+            <span className="text-5xl">🔍</span>
+            <h2 className="font-serif text-xl text-tavern-cream/50 mt-4">No items found</h2>
+            <p className="text-tavern-cream/30 text-sm mt-1">
+              {search ? "Try a different search" : "Be the first to list something!"}
+            </p>
+            {user && (
+              <Link href="/sell" className="tavern-btn inline-flex items-center gap-2 mt-4">
+                <ShoppingBag size={16} /> List Your First Item
+              </Link>
+            )}
+          </div>
+        ) : (
+          <div className={`grid ${isSimple ? "grid-cols-1 md:grid-cols-2 gap-8" : "grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6"}`}>
+            {items.map((item) => (
+              <ItemCard key={item.id} item={item} simple={isSimple} />
+            ))}
+          </div>
+        )}
+      </div>
     </div>
   );
 }
