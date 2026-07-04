@@ -11,7 +11,7 @@ export async function GET() {
 
   const conversations = await db.all(
     `SELECT c.*,
-            i.title as item_title, i.images as item_images, i.price as item_price,
+            i.title as item_title, i.images as item_images, i.price as item_price, i.sold_at as item_sold_at,
             buyer.username as buyer_username,
             seller.username as seller_username,
             (SELECT content FROM messages WHERE conversation_id = c.id ORDER BY created_at DESC LIMIT 1) as last_message,

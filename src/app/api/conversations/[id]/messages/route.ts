@@ -32,7 +32,13 @@ export async function GET(
     Number(id)
   );
 
-  return NextResponse.json({ messages, conversation: conv });
+  // Get item details including sold status
+  const item = await db.get(
+    "SELECT id, title, price, sold_at FROM items WHERE id = ?",
+    conv.item_id
+  );
+
+  return NextResponse.json({ messages, conversation: { ...conv, item_sold_at: item?.sold_at } });
 }
 
 // Send a message

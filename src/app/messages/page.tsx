@@ -4,7 +4,7 @@ import { useState, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { useAuth } from "@/app/context/AuthContext";
 import Link from "next/link";
-import { MessageCircle, ArrowLeft, User } from "lucide-react";
+import { MessageCircle, ArrowLeft, User, CheckCircle } from "lucide-react";
 
 interface Conversation {
   id: number;
@@ -14,6 +14,7 @@ interface Conversation {
   item_title: string;
   item_images: string;
   item_price: number;
+  item_sold_at: string | null;
   buyer_username: string;
   seller_username: string;
   last_message: string | null;
@@ -40,6 +41,8 @@ export default function MessagesPage() {
   const [newMessage, setNewMessage] = useState("");
   const [sending, setSending] = useState(false);
   const [error, setError] = useState("");
+  const [markingSold, setMarkingSold] = useState(false);
+  const [soldMsg, setSoldMsg] = useState("");
 
   useEffect(() => {
     if (!authLoading && !user) {
@@ -104,6 +107,42 @@ export default function MessagesPage() {
     }
   }
 
+  async function markAsSold() {
+    if (!selectedConv || !user || user.id !== selectedConv.seller_id) return;
+    setMarkingSold(true);
+    setSoldMsg("");
+
+    try {
+      const res = await fetch(`/api/items/${selectedConv.item_id}/sold`, {
+        method: "PATCH",
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        setSoldMsg("⚠️ " + data.error);
+        return;
+      }
+
+      setSoldMsg("✅ Item marked as sold!");
+      // Update the conversation to show sold
+      setSelectedConv({ ...selectedConv, item_sold_at: new Date().toISOString() });
+      // Notify in chat
+      await fetch(`/api/conversations/${selectedConv.id}/messages`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ content: "🛒 This item has been marked as sold." }),
+      });
+      // Reload messages
+      const res2 = await fetch(`/api/conversations/${selectedConv.id}/messages`);
+      const data2 = await res2.json();
+      setMessages(data2.messages || []);
+    } catch {
+      setSoldMsg("⚠️ Failed to mark as sold");
+    } finally {
+      setMarkingSold(false);
+    }
+  }
+
   const isSimple = user?.is_simple_mode === 1;
 
   if (authLoading) {
@@ -150,7 +189,10 @@ export default function MessagesPage() {
                       </div>
                       <div className="min-w-0 flex-1">
                         <p className="text-sm text-tavern-cream truncate">{otherUser(conv)}</p>
-                        <p className="text-xs text-tavern-cream/40 truncate">{conv.item_title}</p>
+                        <p className="text-xs text-tavern-cream/40 truncate">
+                          {conv.item_title}
+                          {conv.item_sold_at && <span className="text-tavern-red ml-1">⛔</span>}
+                        </p>
                         {conv.last_message && (
                           <p className="text-xs text-tavern-cream/30 truncate mt-0.5">{conv.last_message}</p>
                         )}
@@ -174,16 +216,40 @@ export default function MessagesPage() {
             ) : (
               <>
                 {/* Chat header */}
-                <div className="p-3 border-b border-tavern-tan/20 flex items-center gap-3">
-                  <div className="w-8 h-8 rounded-full bg-tavern-gold/20 flex items-center justify-center">
-                    <User size={14} className="text-tavern-gold" />
+                <div className="p-3 border-b border-tavern-tan/20">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-3">
+                      <div className="w-8 h-8 rounded-full bg-tavern-gold/20 flex items-center justify-center">
+                        <User size={14} className="text-tavern-gold" />
+                      </div>
+                      <div>
+                        <p className="text-sm text-tavern-cream font-medium">{otherUser(selectedConv)}</p>
+                        <Link href={`/item/${selectedConv.item_id}`} className="text-xs text-tavern-gold hover:underline">
+                          {selectedConv.item_title} — ${selectedConv.item_price.toFixed(2)}
+                        </Link>
+                      </div>
+                    </div>
+
+                    {/* Seller: Mark as Sold button */}
+                    {user && user.id === selectedConv.seller_id && !selectedConv.item_sold_at && (
+                      <button
+                        onClick={markAsSold}
+                        disabled={markingSold}
+                        className="text-xs bg-tavern-green/20 hover:bg-tavern-green/30 text-tavern-green px-3 py-1.5 rounded-lg transition-colors flex items-center gap-1"
+                      >
+                        <CheckCircle size={12} />
+                        {markingSold ? "..." : "Sold"}
+                      </button>
+                    )}
+                    {selectedConv.item_sold_at && (
+                      <span className="text-xs bg-tavern-red/20 text-tavern-red px-2 py-1 rounded-full">
+                        ⛔ Sold
+                      </span>
+                    )}
                   </div>
-                  <div>
-                    <p className="text-sm text-tavern-cream font-medium">{otherUser(selectedConv)}</p>
-                    <Link href={`/item/${selectedConv.item_id}`} className="text-xs text-tavern-gold hover:underline">
-                      {selectedConv.item_title} — ${selectedConv.item_price.toFixed(2)}
-                    </Link>
-                  </div>
+                  {soldMsg && (
+                    <p className="text-xs mt-1 text-tavern-green">{soldMsg}</p>
+                  )}
                 </div>
 
                 {/* Messages */}
