@@ -119,6 +119,27 @@ async function initDb() {
       UNIQUE(reviewer_id, item_id)
     )
   `);
+
+  await db.run(`
+    CREATE TABLE IF NOT EXISTS conversations (
+      id SERIAL PRIMARY KEY,
+      item_id INTEGER NOT NULL REFERENCES items(id),
+      buyer_id INTEGER NOT NULL REFERENCES users(id),
+      seller_id INTEGER NOT NULL REFERENCES users(id),
+      created_at TIMESTAMP DEFAULT NOW(),
+      UNIQUE(item_id, buyer_id)
+    )
+  `);
+
+  await db.run(`
+    CREATE TABLE IF NOT EXISTS messages (
+      id SERIAL PRIMARY KEY,
+      conversation_id INTEGER NOT NULL REFERENCES conversations(id),
+      sender_id INTEGER NOT NULL REFERENCES users(id),
+      content TEXT NOT NULL,
+      created_at TIMESTAMP DEFAULT NOW()
+    )
+  `);
 }
 
 // Init on startup

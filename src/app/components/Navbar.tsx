@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useAuth } from "@/app/context/AuthContext";
-import { Store, User, LogOut, PlusCircle, Home, Menu, X } from "lucide-react";
+import { Store, User, LogOut, PlusCircle, Home, Menu, X, MessageCircle } from "lucide-react";
 import { useState } from "react";
 
 export default function Navbar() {
@@ -42,6 +42,13 @@ export default function Navbar() {
                 >
                   <PlusCircle size={16} />
                   Sell
+                </Link>
+                <Link
+                  href="/messages"
+                  className="flex items-center gap-1 text-tavern-cream/70 hover:text-tavern-gold transition-colors text-sm"
+                >
+                  <MessageCircle size={16} />
+                  Messages
                 </Link>
                 <Link
                   href="/profile"
@@ -88,6 +95,9 @@ export default function Navbar() {
               <>
                 <Link href="/sell" className="block py-2 text-tavern-cream/70 hover:text-tavern-gold" onClick={() => setMobileMenuOpen(false)}>
                   ➕ Sell an Item
+                </Link>
+                <Link href="/messages" className="block py-2 text-tavern-cream/70 hover:text-tavern-gold" onClick={() => setMobileMenuOpen(false)}>
+                  💬 Messages
                 </Link>
                 <Link href="/profile" className="block py-2 text-tavern-cream/70 hover:text-tavern-gold" onClick={() => setMobileMenuOpen(false)}>
                   👤 {user.username}
