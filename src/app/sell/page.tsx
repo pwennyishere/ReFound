@@ -16,7 +16,9 @@ export default function SellPage() {
   const [isAuction, setIsAuction] = useState(false);
   const [startingBid, setStartingBid] = useState("");
   const [auctionDuration, setAuctionDuration] = useState("3");
-  const [imageUrls, setImageUrls] = useState<string[]>([""]);
+  const [imageFiles, setImageFiles] = useState<File[]>([]);
+  const [imagePreviews, setImagePreviews] = useState<string[]>([]);
+  const [uploading, setUploading] = useState(false);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
@@ -36,18 +38,43 @@ export default function SellPage() {
     );
   }
 
-  function addImageField() {
-    setImageUrls([...imageUrls, ""]);
-  }
+  function handleFiles(newFiles: FileList | null) {
+    if (!newFiles) return;
+    const files = Array.from(newFiles);
+    setImageFiles((prev) => [...prev, ...files]);
 
-  function updateImage(index: number, value: string) {
-    const updated = [...imageUrls];
-    updated[index] = value;
-    setImageUrls(updated);
+    // Generate preview URLs
+    files.forEach((file) => {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        setImagePreviews((prev) => [...prev, e.target?.result as string]);
+      };
+      reader.readAsDataURL(file);
+    });
   }
 
   function removeImage(index: number) {
-    setImageUrls(imageUrls.filter((_, i) => i !== index));
+    setImageFiles(imageFiles.filter((_, i) => i !== index));
+    setImagePreviews(imagePreviews.filter((_, i) => i !== index));
+  }
+
+  async function uploadImages(): Promise<string[]> {
+    const urls: string[] = [];
+    for (const file of imageFiles) {
+      const formData = new FormData();
+      formData.append("file", file);
+      const res = await fetch("/api/upload", {
+        method: "POST",
+        body: formData,
+      });
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.error || "Upload failed");
+      }
+      const data = await res.json();
+      urls.push(data.url);
+    }
+    return urls;
   }
 
   async function handleSubmit(e: React.FormEvent) {
@@ -56,7 +83,10 @@ export default function SellPage() {
     setLoading(true);
 
     try {
-      const validImages = imageUrls.filter((url) => url.trim());
+      // Upload images first
+      setUploading(true);
+      const uploadedUrls = imageFiles.length > 0 ? await uploadImages() : [];
+      setUploading(false);
 
       const res = await fetch("/api/items", {
         method: "POST",
@@ -65,7 +95,7 @@ export default function SellPage() {
           title,
           description,
           price: parseFloat(price),
-          images: validImages,
+          images: uploadedUrls,
           category,
           condition,
           is_auction: isAuction,
@@ -207,26 +237,48 @@ export default function SellPage() {
 
           {/* Images */}
           <div>
-            <label className="block text-sm text-tavern-cream/70 mb-1 font-serif">Images (URLs)</label>
-            {imageUrls.map((url, i) => (
-              <div key={i} className="flex gap-2 mb-2">
-                <input
-                  type="text"
-                  value={url}
-                  onChange={(e) => updateImage(i, e.target.value)}
-                  className="tavern-input flex-1"
-                  placeholder="https://example.com/photo.jpg"
-                />
-                {imageUrls.length > 1 && (
-                  <button type="button" onClick={() => removeImage(i)} className="text-tavern-red/50 hover:text-tavern-red px-2">
-                    ✕
-                  </button>
-                )}
+            <label className="block text-sm text-tavern-cream/70 mb-1 font-serif">📸 Photos</label>
+            <div className="border-2 border-dashed border-tavern-tan/30 rounded-lg p-6 text-center hover:border-tavern-gold/50 transition-colors">
+              <input
+                type="file"
+                accept="image/*"
+                multiple
+                onChange={(e) => handleFiles(e.target.files)}
+                className="hidden"
+                id="image-upload"
+              />
+              <label htmlFor="image-upload" className="cursor-pointer block">
+                <span className="text-3xl">🖼️</span>
+                <p className="text-tavern-cream/60 text-sm mt-2">
+                  Click to upload photos from your device
+                </p>
+                <p className="text-tavern-cream/30 text-xs mt-1">
+                  Max 5MB each • PNG, JPG, WEBP
+                </p>
+              </label>
+            </div>
+
+            {/* Preview grid */}
+            {imagePreviews.length > 0 && (
+              <div className="grid grid-cols-3 gap-3 mt-3">
+                {imagePreviews.map((preview, i) => (
+                  <div key={i} className="relative group">
+                    <img
+                      src={preview}
+                      alt={`Preview ${i + 1}`}
+                      className="w-full h-24 object-cover rounded-lg border border-tavern-tan/20"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => removeImage(i)}
+                      className="absolute -top-2 -right-2 w-6 h-6 bg-tavern-red text-white rounded-full text-xs flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
+                    >
+                      ✕
+                    </button>
+                  </div>
+                ))}
               </div>
-            ))}
-            <button type="button" onClick={addImageField} className="text-sm text-tavern-gold hover:underline">
-              + Add another image
-            </button>
+            )}
           </div>
 
           {/* Auction toggle */}
@@ -285,7 +337,7 @@ export default function SellPage() {
             disabled={loading}
             className="tavern-btn w-full flex items-center justify-center gap-2"
           >
-            {loading ? "⏳ Listing..." : "📯 List in Market Square"}
+            {uploading ? "⏳ Uploading photos..." : loading ? "⏳ Listing..." : "📯 List in Market Square"}
           </button>
         </form>
       </div>
